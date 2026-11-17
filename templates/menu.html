@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}SmartServe - Food Menu{% endblock %}
+
+{% block content %}
+<!-- Page Header (Clean, Customer Facing) -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">SmartServe Food Menu</h1>
+        <p class="page-subtitle">Fresh and delicious food prepared to order</p>
+    </div>
+</div>
+
+<!-- 8 Category Filter Groups (No numbers shown to customer) -->
+<div class="category-filter">
+    <button type="button" class="category-pill active" onclick="filterCategory('all', this)">
+        All Items
+    </button>
+    {% for cat in categories %}
+        <button type="button" class="category-pill" onclick="filterCategory('{{ cat }}', this)">
+            {{ cat }}
+        </button>
+    {% endfor %}
+</div>
+
+<!-- Food Menu Cards Grid -->
+{% if menu_items %}
+<div class="menu-grid" id="menuGrid">
+    {% for item in menu_items %}
+    <div class="food-card" data-category="{{ item['category'] }}">
+        <div class="food-card-top">
+            <span class="food-badge">{{ item['category'] }}</span>
+            <h3 class="food-name">{{ item['name'] }}</h3>
+            <div class="food-price">₹{{ "%.2f"|format(item['price']) }}</div>
+        </div>
+
+        <div class="food-card-actions">
+            <!-- Add to Cart Button (Only action available to customer) -->
+            <button type="button" id="add-btn-{{ item['id'] }}" class="btn btn-primary btn-add" 
+                    onclick="addToCart({{ item['id'] }}, '{{ item['name']|replace("'", "\\'") }}', {{ item['price'] }})">
+                🛒 Add to Cart
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="noFilterResults" class="card empty-state" style="display: none; margin-top: 20px;">
+    <h3>No dishes found in this category</h3>
+    <p>Try selecting another category or click "All Items".</p>
+</div>
+
+{% else %}
+<div class="card empty-state">
+    <h3>No menu items available</h3>
+    <p>Please check back shortly or ask the restaurant staff.</p>
+</div>
+{% endif %}
+
+{% endblock %}

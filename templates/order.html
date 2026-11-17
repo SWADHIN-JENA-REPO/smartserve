@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}SmartServe - Place Order{% endblock %}
+
+{% block content %}
+
+<!-- ORDER CONFIRMATION SECTION (Shown after successfully placing an order) -->
+{% if confirmed_order %}
+<div class="confirmation-card">
+    <div style="font-size: 2.2rem; margin-bottom: 8px;">🎉</div>
+    <h3>Order Placed Successfully!</h3>
+    <p>Your order has been recorded and sent to the kitchen.</p>
+
+    <div class="confirmation-details">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">
+            <strong>Order ID: #{{ confirmed_order.id }}</strong>
+            <span class="status-badge status-pending">{{ confirmed_order.status }}</span>
+        </div>
+        <p><strong>Customer Name:</strong> {{ confirmed_order.customer_name }}</p>
+        <p style="margin-top: 4px;"><strong>Contact Number:</strong> 📞 {{ confirmed_order.customer_phone }}</p>
+        <p style="margin-top: 4px;">
+            <strong>Order Type:</strong> 
+            {% if 'Takeaway' in confirmed_order.order_type %}
+                <span class="status-badge" style="background: #fed7aa; color: #9a3412;">🛍️ Takeaway (Go Home & Eat)</span>
+            {% else %}
+                <span class="status-badge" style="background: #e0f2fe; color: #0369a1;">🍽️ Dine-In ({{ confirmed_order.table_no }})</span>
+            {% endif %}
+        </p>
+        <p style="margin-top: 6px;"><strong>Ordered Items:</strong> {{ confirmed_order.items_summary }}</p>
+        <p style="margin-top: 10px; font-size: 1.15rem; color: var(--primary);">
+            <strong>Total Bill:</strong> ₹{{ "%.2f"|format(confirmed_order.total_bill) }}
+        </p>
+    </div>
+
+    <div style="margin-top: 18px; display: flex; justify-content: center; gap: 10px;">
+        <a href="{{ url_for('order') }}" class="btn btn-secondary">Place Another Order</a>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">Back to Menu</a>
+    </div>
+</div>
+
+<script>
+    // Clear active cart
+    localStorage.removeItem("smartserve_cart");
+    // Save to recent orders localStorage
+    saveRecentOrder({
+        id: {{ confirmed_order.id }},
+        name: "{{ confirmed_order.customer_name|replace('\"', '\\\"') }}",
+        phone: "{{ confirmed_order.customer_phone }}",
+        orderType: "{{ confirmed_order.order_type }}",
+        tableNo: "{{ confirmed_order.table_no|replace('\"', '\\\"') }}",
+        items: "{{ confirmed_order.items_summary|replace('\"', '\\\"') }}",
+        total: {{ confirmed_order.total_bill }},
+        status: "{{ confirmed_order.status }}"
+    });
+</script>
+{% endif %}
+
+<!-- Page Header -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Place Your Order</h1>
+        <p class="page-subtitle">Select dishes from the menu, review your order, and confirm your details</p>
+    </div>
+</div>
+
+<div class="order-layout">
+    <!-- LEFT COLUMN: Selected Items & Quick Add from Menu -->
+    <div>
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-title">
+                <span>🍽️</span>
+                <span>Select Food Items</span>
+            </div>
+
+            <!-- Quick Add from Structured Category Dropdown -->
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+                <select id="menuDropdown" class="form-select" style="flex: 1; min-width: 240px;">
+                    <option value="">-- Select Food Item (Organized by Category) --</option>
+                    {% for cat in categories %}
+                        <optgroup label="📂 {{ cat }}">
+                            {% for item in menu_items if item['category'] == cat %}
+                                <option value="{{ item['id'] }}" data-name="{{ item['name'] }}" data-price="{{ item['price'] }}">
+                                    {{ item['name'] }} — ₹{{ "%.2f"|format(item['price']) }}
+                                </option>
+                            {% endfor %}
+                        </optgroup>
+                    {% endfor %}
+                </select>
+                <button type="button" class="btn btn-primary" onclick="addItemFromDropdown()">
+                    + Add to Order
+                </button>
+            </div>
+
+            <!-- Empty Cart Notice -->
+            <div id="emptyCartMsg" class="empty-state" style="padding: 24px; display: none;">
+                <p>🛒 No items selected in your order yet.</p>
+                <p style="font-size: 0.85rem; margin-top: 4px;">
+                    Pick an item from the category dropdown above or browse the 
+                    <a href="{{ url_for('index') }}" style="color: var(--primary); font-weight: 600;">Menu Page</a>.
+                </p>
+            </div>
+
+            <!-- Dynamic Cart Items List -->
+            <ul id="orderCartList" class="cart-list"></ul>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN: Customer Details & 4-Part Information Form -->
+    <div>
+        <div class="card">
+            <div class="card-title">
+                <span>📋</span>
+                <span>Customer & Dining Details</span>
+            </div>
+
+            <form action="{{ url_for('order') }}" method="POST" id="orderForm">
+                <!-- Part 1: Customer Name -->
+                <div class="form-group">
+                    <label class="form-label" for="customer_name">1. Customer Name *</label>
+                    <input type="text" id="customer_name" name="customer_name" class="form-input" 
+                           placeholder="Enter your name" required>
+                </div>
+
+                <!-- Part 2: Contact Number (Strictly 10 Digits Only) -->
+                <div class="form-group">
+                    <label class="form-label" for="customer_phone">2. Mobile Number (10 Digits Only) *</label>
+                    <input type="tel" id="customer_phone" name="customer_phone" class="form-input" 
+                           placeholder="Enter 10-digit mobile number" 
+                           pattern="[0-9]{10}" maxlength="10" minlength="10" required 
+                           oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);"
+                           title="Please enter a valid 10-digit mobile number">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 3px;">
+                        Must be exactly 10 digits (numbers only)
+                    </span>
+                </div>
+
+                <!-- Part 3: Order Type (Dine-In vs Takeaway / Parcel - Go Home & Eat) -->
+                <div class="form-group">
+                    <label class="form-label" for="order_type">3. Dining Option *</label>
+                    <select id="order_type" name="order_type" class="form-select" onchange="handleOrderTypeChange()" required>
+                        <option value="Dine-In">🍽️ Dine-In (Eat at Restaurant)</option>
+                        <option value="Takeaway / Parcel">🛍️ Takeaway / Parcel (Go Home & Eat)</option>
+                    </select>
+                </div>
+
+                <!-- Part 4: Table Number (Or Takeaway note) -->
+                <div class="form-group" id="tableNumberGroup">
+                    <label class="form-label" for="table_no">4. Table Number</label>
+                    <input type="text" id="table_no" name="table_no" class="form-input" placeholder="e.g. Table 4">
+                    <span id="tableHint" style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 3px;">
+                        Enter table number if dining in
+                    </span>
+                </div>
+
+                <!-- Hidden inputs passed to Flask backend -->
+                <input type="hidden" id="hiddenItemsSummary" name="items_summary" value="">
+                <input type="hidden" id="hiddenTotalBill" name="total_bill" value="0.00">
+
+                <!-- Automatic Bill Calculation Display -->
+                <div class="bill-summary">
+                    <div class="bill-row">
+                        <span>Items Subtotal:</span>
+                        <strong id="subtotalDisplay">₹0.00</strong>
+                    </div>
+                    <div class="bill-row">
+                        <span>GST (5%):</span>
+                        <span id="gstDisplay">₹0.00</span>
+                    </div>
+                    <div class="bill-total">
+                        <span>Grand Total:</span>
+                        <span id="totalDisplay">₹0.00</span>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" id="placeOrderBtn" class="btn btn-primary" 
+                        style="width: 100%; margin-top: 18px; padding: 12px; font-size: 1rem;">
+                    Confirm & Place Order
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function handleOrderTypeChange() {
+        const orderType = document.getElementById("order_type").value;
+        const tableInput = document.getElementById("table_no");
+        const tableHint = document.getElementById("tableHint");
+
+        if (orderType.includes("Takeaway")) {
+            tableInput.value = "Takeaway (Go Home)";
+            tableInput.readOnly = true;
+            tableInput.style.backgroundColor = "#f3f4f6";
+            tableHint.innerText = "Order will be packaged for takeaway to go home and eat.";
+        } else {
+            if (tableInput.value === "Takeaway (Go Home)") {
+                tableInput.value = "";
+            }
+            tableInput.readOnly = false;
+            tableInput.style.backgroundColor = "#fff";
+            tableInput.placeholder = "e.g. Table 4";
+            tableHint.innerText = "Enter table number if dining in.";
+        }
+    }
+
+    // Validate cart is not empty before form submission
+    const orderFormEl = document.getElementById("orderForm");
+    if (orderFormEl) {
+        orderFormEl.addEventListener("submit", function(e) {
+            const cart = getCart();
+            if (!cart || cart.length === 0) {
+                alert("Please add at least one food item to your order.");
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+</script>
+
+{% endblock %}

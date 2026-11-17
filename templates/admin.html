@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+
+{% block title %}SmartServe - Admin Dashboard{% endblock %}
+
+{% block content %}
+
+{% if not authenticated %}
+<!-- ================= ADMIN AUTHENTICATION SCREEN ================= -->
+<div style="max-width: 440px; margin: 40px auto;">
+    <div class="card" style="text-align: center; padding: 36px 28px; box-shadow: var(--shadow-md);">
+        <div style="width: 56px; height: 56px; background-color: var(--primary-light); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin: 0 auto 16px;">
+            🔒
+        </div>
+        <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 8px;">Admin Authentication</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px;">
+            Enter the admin password to manage customer orders and food menu items.
+        </p>
+
+        <!-- Admin Login Form (No password hints shown) -->
+        <form action="{{ url_for('admin_login') }}" method="POST">
+            <div class="form-group" style="text-align: left;">
+                <label class="form-label" for="admin_password">Admin Password</label>
+                <input type="password" id="admin_password" name="password" class="form-input" 
+                       placeholder="Enter password..." required autofocus>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 11px; margin-top: 12px; font-size: 0.95rem;">
+                🔓 Unlock Admin Dashboard
+            </button>
+        </form>
+    </div>
+</div>
+
+{% else %}
+<!-- ================= AUTHENTICATED ADMIN DASHBOARD ================= -->
+
+<!-- Page Header with Add Food Item & Logout Button -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Admin Dashboard</h1>
+        <p class="page-subtitle">Logged in as Administrator &bull; Manage live orders, food menu, and revenue metrics</p>
+    </div>
+    <div style="display: flex; gap: 8px;">
+        <!-- Only Admin Can Add New Food & Category Types -->
+        <button type="button" class="btn btn-primary btn-sm" onclick="openAddModal()">
+            ➕ Add New Food Item
+        </button>
+        <a href="{{ url_for('admin_logout') }}" class="btn btn-danger btn-sm">
+            🔒 Logout
+        </a>
+    </div>
+</div>
+
+<!-- Stats Overview Cards (Counts and numbers shown here for Admin) -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-title">Total Orders</div>
+        <div class="stat-value">{{ stats.total }}</div>
+    </div>
+    <div class="stat-card" style="border-top-color: var(--warning);">
+        <div class="stat-title">Pending Orders</div>
+        <div class="stat-value" style="color: var(--warning);">{{ stats.pending }}</div>
+    </div>
+    <div class="stat-card" style="border-top-color: var(--info);">
+        <div class="stat-title">Preparing Orders</div>
+        <div class="stat-value" style="color: var(--info);">{{ stats.preparing }}</div>
+    </div>
+    <div class="stat-card" style="border-top-color: var(--success);">
+        <div class="stat-title">Completed Orders</div>
+        <div class="stat-value" style="color: var(--success);">{{ stats.completed }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-title">Total Revenue</div>
+        <div class="stat-value" style="color: var(--primary);">₹{{ "%.2f"|format(stats.revenue) }}</div>
+    </div>
+    <div class="stat-card" style="border-top-color: #6366f1;">
+        <div class="stat-title">Menu Catalog</div>
+        <div class="stat-value" style="font-size: 1.3rem;">{{ stats.total_items }} items <span style="font-size: 0.8rem; color: var(--text-muted);">({{ stats.total_categories }} groups)</span></div>
+    </div>
+</div>
+
+<!-- SECTION 1: CUSTOMER ORDERS TABLE -->
+<div class="card" style="padding: 0; overflow: hidden; margin-bottom: 30px;">
+    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background-color: #fafafa;">
+        <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">📋 Live Customer Orders</h3>
+        <span style="font-size: 0.85rem; color: var(--text-muted);">{{ orders|length }} total orders</span>
+    </div>
+
+    <div class="table-responsive" id="adminTableResponsive" {% if not orders %}style="display: none;"{% endif %}>
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Order #</th>
+                    <th>Customer Name</th>
+                    <th>10-Digit Mobile</th>
+                    <th>Dining / Table</th>
+                    <th>Ordered Items & Qty</th>
+                    <th>Total Bill</th>
+                    <th>Status</th>
+                    <th>Update Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="adminOrdersTableBody">
+                {% for order in orders %}
+                <tr data-order-id="{{ order['id'] }}">
+                    <td><strong>#{{ order['id'] }}</strong></td>
+                    <td>
+                        <div style="font-weight: 600;">{{ order['customer_name'] }}</div>
+                    </td>
+                    <td>
+                        <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
+                            {{ order['customer_phone'] }}
+                        </code>
+                    </td>
+                    <td>
+                        {% if 'Takeaway' in order['order_type'] or 'Takeaway' in order['table_no'] %}
+                            <span class="status-badge" style="background: #fed7aa; color: #9a3412;">🛍️ Takeaway (Go Home)</span>
+                        {% else %}
+                            <span class="status-badge" style="background: #e0f2fe; color: #0369a1;">🍽️ {{ order['table_no'] if order['table_no'] else 'Dine-In' }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="max-width: 260px; word-break: break-word;">
+                        {{ order['items_summary'] }}
+                    </td>
+                    <td>
+                        <strong style="color: var(--primary);">₹{{ "%.2f"|format(order['total_bill']) }}</strong>
+                    </td>
+                    <td>
+                        {% if order['status'] == 'Pending' %}
+                            <span class="status-badge status-pending">Pending</span>
+                        {% elif order['status'] == 'Preparing' %}
+                            <span class="status-badge status-preparing">Preparing</span>
+                        {% else %}
+                            <span class="status-badge status-completed">Completed</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <!-- Status Update Dropdown Form -->
+                        <form action="{{ url_for('update_status', order_id=order['id']) }}" method="POST" style="margin: 0;">
+                            <select name="status" class="status-select" onchange="this.form.submit()">
+                                <option value="Pending" {% if order['status'] == 'Pending' %}selected{% endif %}>Pending</option>
+                                <option value="Preparing" {% if order['status'] == 'Preparing' %}selected{% endif %}>Preparing</option>
+                                <option value="Completed" {% if order['status'] == 'Completed' %}selected{% endif %}>Completed</option>
+                            </select>
+                        </form>
+                    </td>
+                    <td style="text-align: right;">
+                        <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                            <!-- Edit Customer Details Button -->
+                            <button type="button" class="btn btn-secondary btn-sm" title="Edit Customer Details"
+                                    onclick="openEditCustomerModal({{ order['id'] }}, '{{ order['customer_name']|replace("'", "\\'") }}', '{{ order['customer_phone'] }}', '{{ order['order_type'] }}', '{{ order['table_no']|replace("'", "\\'") }}')">
+                                ✏️ Edit
+                            </button>
+
+                            <!-- Delete Order Form -->
+                            <form action="{{ url_for('delete_order', order_id=order['id']) }}" method="POST" 
+                                  onsubmit="return confirm('Delete Order #{{ order['id'] }}? This cannot be undone.');" style="margin: 0;">
+                                <button type="submit" class="btn btn-danger btn-sm" title="Delete Order">
+                                    🗑️
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="empty-state" id="adminEmptyState" {% if orders %}style="display: none;"{% endif %}>
+        <p>📋 No customer orders recorded yet.</p>
+        <p style="font-size: 0.85rem; margin-top: 4px;">Orders placed on the website or saved in your browser will instantly appear here.</p>
+    </div>
+</div>
+
+<!-- SECTION 1B: LOCAL STORAGE DEVICE ORDERS (ADMIN ONLY) -->
+<div class="card" style="padding: 0; overflow: hidden; margin-bottom: 30px;">
+    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background-color: #fafafa;">
+        <div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">💾 Local Storage Orders (Device Cache)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Orders recorded in browser local storage. Only visible here in the Admin Portal.</p>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="clearLocalStorageOrders()">
+            🧹 Clear Local Storage
+        </button>
+    </div>
+    <div id="adminLocalStorageOrdersContainer" style="padding: 16px;"></div>
+</div>
+
+<!-- SECTION 2: ADMIN FOOD & MENU MANAGEMENT -->
+<div class="card" style="padding: 0; overflow: hidden;">
+    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background-color: #fafafa;">
+        <div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">🍴 Food Menu Management (Admin Only)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Only you as the administrator can add new dishes, create new category types, edit prices, or remove items.</p>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openAddModal()">
+            + Add New Food
+        </button>
+    </div>
+
+    <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Item ID</th>
+                    <th>Dish Name</th>
+                    <th>Category Type</th>
+                    <th>Price</th>
+                    <th style="text-align: right;">Admin Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in menu_items %}
+                <tr>
+                    <td>#{{ item['id'] }}</td>
+                    <td><strong>{{ item['name'] }}</strong></td>
+                    <td><span class="food-badge">{{ item['category'] }}</span></td>
+                    <td style="color: var(--primary); font-weight: 700;">₹{{ "%.2f"|format(item['price']) }}</td>
+                    <td style="text-align: right;">
+                        <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                            <button type="button" class="btn btn-secondary btn-sm"
+                                    onclick="openEditModal({{ item['id'] }}, '{{ item['name']|replace("'", "\\'") }}', '{{ item['category']|replace("'", "\\'") }}', {{ item['price'] }})">
+                                ✏️ Edit
+                            </button>
+                            <form action="{{ url_for('delete_item', item_id=item['id']) }}" method="POST"
+                                  onsubmit="return confirm('Delete {{ item['name'] }} from menu?');" style="margin: 0;">
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    🗑️ Delete
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ================= MODALS (ADMIN ONLY) ================= -->
+
+<!-- MODAL 1: ADD NEW FOOD ITEM & NEW CATEGORY TYPE -->
+<div id="addItemModal" class="modal-backdrop">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Add New Food Item</h3>
+            <button type="button" class="modal-close" onclick="closeModal('addItemModal')">&times;</button>
+        </div>
+        <form action="{{ url_for('add_item') }}" method="POST">
+            <!-- 1. Food Name Input -->
+            <div class="form-group">
+                <label class="form-label" for="add_name">Food Item Name *</label>
+                <input type="text" id="add_name" name="name" class="form-input" placeholder="e.g. Masala Dosa" required>
+            </div>
+
+            <!-- 2. Category Dropdown Selector -->
+            <div class="form-group">
+                <label class="form-label" for="add_category_select">Category Group *</label>
+                <select id="add_category_select" name="category" class="form-select" onchange="toggleCustomCategory('add')" required>
+                    <option value="" disabled selected>-- Select an Existing Category --</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat }}">{{ cat }}</option>
+                    {% endfor %}
+                    <option value="__NEW__">➕ + Add Brand New Category / Type</option>
+                </select>
+
+                <!-- Input for custom category (shown if + Add Brand New Category is selected) -->
+                <div id="add_custom_category_group" style="display: none; margin-top: 8px;">
+                    <input type="text" id="add_custom_category" name="custom_category" class="form-input" 
+                           placeholder="Type new category name (e.g. South Indian, Mocktails)">
+                </div>
+            </div>
+
+            <!-- 3. Price Input -->
+            <div class="form-group">
+                <label class="form-label" for="add_price">Price (₹) *</label>
+                <input type="number" step="0.5" id="add_price" name="price" class="form-input" placeholder="e.g. 120" required>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('addItemModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save to Menu</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL 2: EDIT FOOD ITEM -->
+<div id="editItemModal" class="modal-backdrop">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Edit Food Item</h3>
+            <button type="button" class="modal-close" onclick="closeModal('editItemModal')">&times;</button>
+        </div>
+        <form id="editItemForm" method="POST">
+            <div class="form-group">
+                <label class="form-label" for="edit_name">Food Item Name *</label>
+                <input type="text" id="edit_name" name="name" class="form-input" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="edit_category_select">Category Type *</label>
+                <select id="edit_category_select" name="category" class="form-select" onchange="toggleCustomCategory('edit')" required>
+                    {% for cat in categories %}
+                        <option value="{{ cat }}">{{ cat }}</option>
+                    {% endfor %}
+                    <option value="__NEW__">➕ + Add Brand New Category / Type</option>
+                </select>
+
+                <div id="edit_custom_category_group" style="display: none; margin-top: 8px;">
+                    <input type="text" id="edit_custom_category" name="custom_category" class="form-input" 
+                           placeholder="Type new category name">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="edit_price">Price (₹) *</label>
+                <input type="number" step="0.5" id="edit_price" name="price" class="form-input" required>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editItemModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Item</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL 3: EDIT CUSTOMER DETAILS -->
+<div id="editCustomerModal" class="modal-backdrop">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Edit Customer Details (<span id="edit_order_id_display"></span>)</h3>
+            <button type="button" class="modal-close" onclick="closeModal('editCustomerModal')">&times;</button>
+        </div>
+        <form id="editCustomerForm" method="POST">
+            <div class="form-group">
+                <label class="form-label" for="edit_customer_name">Customer Name *</label>
+                <input type="text" id="edit_customer_name" name="customer_name" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit_customer_phone">10-Digit Mobile Number *</label>
+                <input type="tel" id="edit_customer_phone" name="customer_phone" class="form-input" 
+                       pattern="[0-9]{10}" maxlength="10" minlength="10" required
+                       oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit_order_type">Dining Option</label>
+                <select id="edit_order_type" name="order_type" class="form-select">
+                    <option value="Dine-In">🍽️ Dine-In</option>
+                    <option value="Takeaway / Parcel">🛍️ Takeaway / Parcel (Go Home)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit_table_no">Table Number / Packing Note</label>
+                <input type="text" id="edit_table_no" name="table_no" class="form-input" placeholder="e.g. Table 4">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editCustomerModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openEditCustomerModal(orderId, name, phone, orderType, tableNo) {
+        const modal = document.getElementById("editCustomerModal");
+        const form = document.getElementById("editCustomerForm");
+        if (!modal || !form) return;
+
+        form.action = `/admin/edit-customer/${orderId}`;
+        document.getElementById("edit_order_id_display").innerText = `#${orderId}`;
+        document.getElementById("edit_customer_name").value = name;
+        document.getElementById("edit_customer_phone").value = phone;
+        document.getElementById("edit_order_type").value = orderType;
+        document.getElementById("edit_table_no").value = tableNo;
+
+        modal.classList.add("active");
+    }
+
+    function openEditModal(id, name, category, price) {
+        const modal = document.getElementById("editItemModal");
+        const form = document.getElementById("editItemForm");
+        if (!modal || !form) return;
+
+        form.action = `/admin/menu/edit/${id}`;
+        document.getElementById("edit_name").value = name;
+        document.getElementById("edit_price").value = price;
+
+        const select = document.getElementById("edit_category_select");
+        const customGroup = document.getElementById("edit_custom_category_group");
+        const customInput = document.getElementById("edit_custom_category");
+
+        let matched = false;
+        for (let i = 0; i < select.options.length; i++) {
+            if (select.options[i].value === category) {
+                select.selectedIndex = i;
+                matched = true;
+                break;
+            }
+        }
+
+        if (!matched) {
+            select.value = "__NEW__";
+            customGroup.style.display = "block";
+            customInput.value = category;
+            customInput.required = true;
+        } else {
+            customGroup.style.display = "none";
+            customInput.value = "";
+            customInput.required = false;
+        }
+
+        modal.classList.add("active");
+    }
+</script>
+
+{% endif %}
+
+{% endblock %}
