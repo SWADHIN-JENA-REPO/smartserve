@@ -27,8 +27,9 @@ def index():
     """
     Page 1: Customer Food Menu.
     Customers can ONLY browse food items, filter categories, and add items to cart.
-    No adding/editing/deleting food from here.
+    Navigating away to customer side automatically logs out admin.
     """
+    session.pop("admin_logged_in", None)
     menu_items = database.get_menu_items()
     categories = database.get_all_categories()
     return render_template("menu.html", menu_items=menu_items, categories=categories)
@@ -40,6 +41,7 @@ def index():
 def order():
     """
     Page 2: Customer Order Placement.
+    Navigating away to customer order page automatically logs out admin.
     Requires:
     1. Customer Name
     2. Exactly 10-digit valid mobile number
@@ -47,6 +49,9 @@ def order():
     4. Table Number (for Dine-In)
     5. Selected food items with automatic bill calculation
     """
+    if request.method == "GET":
+        session.pop("admin_logged_in", None)
+
     if request.method == "POST":
         customer_name = request.form.get("customer_name", "").strip()
         customer_phone = request.form.get("customer_phone", "").strip()
@@ -137,27 +142,49 @@ def admin():
     menu_items = database.get_menu_items()
     categories = database.get_all_categories()
 
+    # Split orders into 3 dedicated tables: Pending, Preparing, Completed
+    pending_orders = [o for o in orders if o["status"] == "Pending"]
+    preparing_orders = [o for o in orders if o["status"] == "Preparing"]
+    completed_orders = [o for o in orders if o["status"] == "Completed"]
+
+    # Calculate category summary breakdown (live counts of listed dishes per category)
+    category_counts = {}
+    for item in menu_items:
+        cat = item["category"]
+        category_counts[cat] = category_counts.get(cat, 0) + 1
+
+    category_summary = []
+    for cat in categories:
+        category_summary.append({
+            "name": cat,
+            "count": category_counts.get(cat, 0)
+        })
+    for cat, cnt in category_counts.items():
+        if not any(c["name"] == cat for c in category_summary):
+            category_summary.append({"name": cat, "count": cnt})
+
     # Calculate statistics for the dashboard
     total_orders = len(orders)
-    pending_count = sum(1 for o in orders if o["status"] == "Pending")
-    preparing_count = sum(1 for o in orders if o["status"] == "Preparing")
-    completed_count = sum(1 for o in orders if o["status"] == "Completed")
     total_revenue = sum(o["total_bill"] for o in orders)
 
     stats = {
         "total": total_orders,
-        "pending": pending_count,
-        "preparing": preparing_count,
-        "completed": completed_count,
+        "pending": len(pending_orders),
+        "preparing": len(preparing_orders),
+        "completed": len(completed_orders),
         "revenue": round(total_revenue, 2),
         "total_items": len(menu_items),
-        "total_categories": len(categories)
+        "total_categories": len(category_summary)
     }
 
     return render_template(
         "admin.html",
         authenticated=True,
         orders=orders,
+        pending_orders=pending_orders,
+        preparing_orders=preparing_orders,
+        completed_orders=completed_orders,
+        category_summary=category_summary,
         stats=stats,
         menu_items=menu_items,
         categories=categories

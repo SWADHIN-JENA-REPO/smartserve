@@ -78,102 +78,374 @@
     </div>
 </div>
 
-<!-- SECTION 1: CUSTOMER ORDERS TABLE -->
-<div class="card" style="padding: 0; overflow: hidden; margin-bottom: 30px;">
-    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background-color: #fafafa;">
-        <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">📋 Live Customer Orders</h3>
-        <span style="font-size: 0.85rem; color: var(--text-muted);">{{ orders|length }} total orders</span>
+<!-- ================= SECTION 1: THREE DEDICATED ORDER TABLES (10 PER TABLE + DROPDOWN) ================= -->
+<div style="margin-bottom: 32px;">
+    <!-- Order Filter Tabs for Laptop View -->
+    <div class="order-status-tabs">
+        <button type="button" class="order-tab-btn active" onclick="switchOrderTab('all', this)">
+            📋 View All 3 Tables
+        </button>
+        <button type="button" class="order-tab-btn" onclick="switchOrderTab('pending', this)">
+            ⏳ Pending ({{ pending_orders|length }})
+        </button>
+        <button type="button" class="order-tab-btn" onclick="switchOrderTab('preparing', this)">
+            👨‍🍳 Preparing ({{ preparing_orders|length }})
+        </button>
+        <button type="button" class="order-tab-btn" onclick="switchOrderTab('completed', this)">
+            ✅ Completed ({{ completed_orders|length }})
+        </button>
     </div>
 
-    <div class="table-responsive" id="adminTableResponsive" {% if not orders %}style="display: none;"{% endif %}>
-        <table class="custom-table">
+    <!-- TABLE 1: PENDING ORDERS -->
+    <div class="order-table-card" id="tabContent_pending">
+        <div class="order-table-header" style="background: #fff7ed; border-left: 4px solid var(--warning);">
+            <div>
+                <h3 style="color: #9a3412;">⏳ Table 1: Pending Orders</h3>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                    New orders awaiting kitchen preparation. Displaying 10 latest orders.
+                </p>
+            </div>
+            <span class="status-badge status-pending" style="font-size: 0.85rem;">{{ pending_orders|length }} Pending</span>
+        </div>
+
+        {% if pending_orders %}
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Order #</th>
+                        <th>Customer Name</th>
+                        <th>Mobile</th>
+                        <th>Dining / Table</th>
+                        <th>Ordered Items</th>
+                        <th>Total Bill</th>
+                        <th>Status</th>
+                        <th>Update Status</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in pending_orders %}
+                    <tr class="pending-row {% if loop.index > 10 %}pending-extra-row{% endif %}" id="pending-row-{{ order['id'] }}" {% if loop.index > 10 %}style="display: none;"{% endif %}>
+                        <td><strong>#{{ order['id'] }}</strong></td>
+                        <td><strong>{{ order['customer_name'] }}</strong></td>
+                        <td><code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-weight: 600;">{{ order['customer_phone'] }}</code></td>
+                        <td>
+                            {% if 'Takeaway' in order['order_type'] or 'Takeaway' in order['table_no'] %}
+                                <span class="status-badge" style="background: #fed7aa; color: #9a3412;">🛍️ Takeaway</span>
+                            {% else %}
+                                <span class="status-badge" style="background: #e0f2fe; color: #0369a1;">🍽️ {{ order['table_no'] if order['table_no'] else 'Dine-In' }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="max-width: 240px; word-break: break-word;">{{ order['items_summary'] }}</td>
+                        <td><strong style="color: var(--primary);">₹{{ "%.2f"|format(order['total_bill']) }}</strong></td>
+                        <td><span class="status-badge status-pending">Pending</span></td>
+                        <td>
+                            <form action="{{ url_for('update_status', order_id=order['id']) }}" method="POST" style="margin: 0;">
+                                <select name="status" class="status-select" onchange="this.form.submit()">
+                                    <option value="Pending" selected>Pending</option>
+                                    <option value="Preparing">Preparing</option>
+                                    <option value="Completed">Completed</option>
+                                </select>
+                            </form>
+                        </td>
+                        <td style="text-align: right;">
+                            <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                                <button type="button" class="btn btn-secondary btn-sm" title="Edit Customer"
+                                        onclick="openEditCustomerModal({{ order['id'] }}, '{{ order['customer_name']|replace("'", "\\'") }}', '{{ order['customer_phone'] }}', '{{ order['order_type'] }}', '{{ order['table_no']|replace("'", "\\'") }}')">
+                                    ✏️
+                                </button>
+                                <form action="{{ url_for('delete_order', order_id=order['id']) }}" method="POST" 
+                                      onsubmit="return confirm('Delete Order #{{ order['id'] }}?');" style="margin: 0;">
+                                    <button type="submit" class="btn btn-danger btn-sm" title="Delete">🗑️</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if pending_orders|length > 10 %}
+        <div class="order-dropdown-bar">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">
+                Showing <strong>10 of {{ pending_orders|length }}</strong> pending orders
+            </span>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">More Pending Orders:</label>
+                <select class="form-select" style="font-size: 0.85rem; padding: 4px 8px; min-width: 220px;" onchange="handleDropdownSelection('pending', this.value)">
+                    <option value="10">-- Latest 10 Only --</option>
+                    <option value="all">➕ Show All {{ pending_orders|length }} Orders</option>
+                    {% for o in pending_orders[10:] %}
+                        <option value="{{ o['id'] }}">Order #{{ o['id'] }} - {{ o['customer_name'] }} (₹{{ "%.2f"|format(o['total_bill']) }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="empty-state" style="padding: 24px;">
+            <p>⏳ No pending orders right now. New customer orders will appear here automatically.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- TABLE 2: PREPARING ORDERS -->
+    <div class="order-table-card" id="tabContent_preparing">
+        <div class="order-table-header" style="background: #f0f9ff; border-left: 4px solid var(--info);">
+            <div>
+                <h3 style="color: #0369a1;">👨‍🍳 Table 2: Preparing in Kitchen</h3>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                    Orders currently cooking in the kitchen. Displaying 10 latest orders.
+                </p>
+            </div>
+            <span class="status-badge status-preparing" style="font-size: 0.85rem;">{{ preparing_orders|length }} Preparing</span>
+        </div>
+
+        {% if preparing_orders %}
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Order #</th>
+                        <th>Customer Name</th>
+                        <th>Mobile</th>
+                        <th>Dining / Table</th>
+                        <th>Ordered Items</th>
+                        <th>Total Bill</th>
+                        <th>Status</th>
+                        <th>Update Status</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in preparing_orders %}
+                    <tr class="preparing-row {% if loop.index > 10 %}preparing-extra-row{% endif %}" id="preparing-row-{{ order['id'] }}" {% if loop.index > 10 %}style="display: none;"{% endif %}>
+                        <td><strong>#{{ order['id'] }}</strong></td>
+                        <td><strong>{{ order['customer_name'] }}</strong></td>
+                        <td><code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-weight: 600;">{{ order['customer_phone'] }}</code></td>
+                        <td>
+                            {% if 'Takeaway' in order['order_type'] or 'Takeaway' in order['table_no'] %}
+                                <span class="status-badge" style="background: #fed7aa; color: #9a3412;">🛍️ Takeaway</span>
+                            {% else %}
+                                <span class="status-badge" style="background: #e0f2fe; color: #0369a1;">🍽️ {{ order['table_no'] if order['table_no'] else 'Dine-In' }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="max-width: 240px; word-break: break-word;">{{ order['items_summary'] }}</td>
+                        <td><strong style="color: var(--primary);">₹{{ "%.2f"|format(order['total_bill']) }}</strong></td>
+                        <td><span class="status-badge status-preparing">Preparing</span></td>
+                        <td>
+                            <form action="{{ url_for('update_status', order_id=order['id']) }}" method="POST" style="margin: 0;">
+                                <select name="status" class="status-select" onchange="this.form.submit()">
+                                    <option value="Pending">Pending</option>
+                                    <option value="Preparing" selected>Preparing</option>
+                                    <option value="Completed">Completed</option>
+                                </select>
+                            </form>
+                        </td>
+                        <td style="text-align: right;">
+                            <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                                <button type="button" class="btn btn-secondary btn-sm" title="Edit Customer"
+                                        onclick="openEditCustomerModal({{ order['id'] }}, '{{ order['customer_name']|replace("'", "\\'") }}', '{{ order['customer_phone'] }}', '{{ order['order_type'] }}', '{{ order['table_no']|replace("'", "\\'") }}')">
+                                    ✏️
+                                </button>
+                                <form action="{{ url_for('delete_order', order_id=order['id']) }}" method="POST" 
+                                      onsubmit="return confirm('Delete Order #{{ order['id'] }}?');" style="margin: 0;">
+                                    <button type="submit" class="btn btn-danger btn-sm" title="Delete">🗑️</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if preparing_orders|length > 10 %}
+        <div class="order-dropdown-bar">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">
+                Showing <strong>10 of {{ preparing_orders|length }}</strong> preparing orders
+            </span>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">More Preparing Orders:</label>
+                <select class="form-select" style="font-size: 0.85rem; padding: 4px 8px; min-width: 220px;" onchange="handleDropdownSelection('preparing', this.value)">
+                    <option value="10">-- Latest 10 Only --</option>
+                    <option value="all">➕ Show All {{ preparing_orders|length }} Orders</option>
+                    {% for o in preparing_orders[10:] %}
+                        <option value="{{ o['id'] }}">Order #{{ o['id'] }} - {{ o['customer_name'] }} (₹{{ "%.2f"|format(o['total_bill']) }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="empty-state" style="padding: 24px;">
+            <p>👨‍🍳 No orders currently being prepared in the kitchen.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- TABLE 3: COMPLETED ORDERS -->
+    <div class="order-table-card" id="tabContent_completed">
+        <div class="order-table-header" style="background: #f0fdf4; border-left: 4px solid var(--success);">
+            <div>
+                <h3 style="color: #15803d;">✅ Table 3: Completed Orders</h3>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                    Orders cooked, delivered, and finished. Displaying 10 latest orders.
+                </p>
+            </div>
+            <span class="status-badge status-completed" style="font-size: 0.85rem;">{{ completed_orders|length }} Completed</span>
+        </div>
+
+        {% if completed_orders %}
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Order #</th>
+                        <th>Customer Name</th>
+                        <th>Mobile</th>
+                        <th>Dining / Table</th>
+                        <th>Ordered Items</th>
+                        <th>Total Bill</th>
+                        <th>Status</th>
+                        <th>Update Status</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in completed_orders %}
+                    <tr class="completed-row {% if loop.index > 10 %}completed-extra-row{% endif %}" id="completed-row-{{ order['id'] }}" {% if loop.index > 10 %}style="display: none;"{% endif %}>
+                        <td><strong>#{{ order['id'] }}</strong></td>
+                        <td><strong>{{ order['customer_name'] }}</strong></td>
+                        <td><code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-weight: 600;">{{ order['customer_phone'] }}</code></td>
+                        <td>
+                            {% if 'Takeaway' in order['order_type'] or 'Takeaway' in order['table_no'] %}
+                                <span class="status-badge" style="background: #fed7aa; color: #9a3412;">🛍️ Takeaway</span>
+                            {% else %}
+                                <span class="status-badge" style="background: #e0f2fe; color: #0369a1;">🍽️ {{ order['table_no'] if order['table_no'] else 'Dine-In' }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="max-width: 240px; word-break: break-word;">{{ order['items_summary'] }}</td>
+                        <td><strong style="color: var(--primary);">₹{{ "%.2f"|format(order['total_bill']) }}</strong></td>
+                        <td><span class="status-badge status-completed">Completed</span></td>
+                        <td>
+                            <form action="{{ url_for('update_status', order_id=order['id']) }}" method="POST" style="margin: 0;">
+                                <select name="status" class="status-select" onchange="this.form.submit()">
+                                    <option value="Pending">Pending</option>
+                                    <option value="Preparing">Preparing</option>
+                                    <option value="Completed" selected>Completed</option>
+                                </select>
+                            </form>
+                        </td>
+                        <td style="text-align: right;">
+                            <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                                <button type="button" class="btn btn-secondary btn-sm" title="Edit Customer"
+                                        onclick="openEditCustomerModal({{ order['id'] }}, '{{ order['customer_name']|replace("'", "\\'") }}', '{{ order['customer_phone'] }}', '{{ order['order_type'] }}', '{{ order['table_no']|replace("'", "\\'") }}')">
+                                    ✏️
+                                </button>
+                                <form action="{{ url_for('delete_order', order_id=order['id']) }}" method="POST" 
+                                      onsubmit="return confirm('Delete Order #{{ order['id'] }}?');" style="margin: 0;">
+                                    <button type="submit" class="btn btn-danger btn-sm" title="Delete">🗑️</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if completed_orders|length > 10 %}
+        <div class="order-dropdown-bar">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">
+                Showing <strong>10 of {{ completed_orders|length }}</strong> completed orders
+            </span>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">More Completed Orders:</label>
+                <select class="form-select" style="font-size: 0.85rem; padding: 4px 8px; min-width: 220px;" onchange="handleDropdownSelection('completed', this.value)">
+                    <option value="10">-- Latest 10 Only --</option>
+                    <option value="all">➕ Show All {{ completed_orders|length }} Orders</option>
+                    {% for o in completed_orders[10:] %}
+                        <option value="{{ o['id'] }}">Order #{{ o['id'] }} - {{ o['customer_name'] }} (₹{{ "%.2f"|format(o['total_bill']) }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="empty-state" style="padding: 24px;">
+            <p>✅ No orders completed yet.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ================= SECTION 2: CATEGORY-WISE FOOD SUMMARY TABLE ================= -->
+<div class="card" style="padding: 0; overflow: hidden; margin-bottom: 30px;">
+    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background-color: #fafafa;">
+        <div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">📊 Food Category Summary (Live Inventory)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                Shows exact number of dishes listed per category. Updates automatically when you add, update, or remove food items.
+            </p>
+        </div>
+        <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary); background: var(--primary-light); padding: 5px 12px; border-radius: 20px;">
+            {{ stats.total_items }} Total Dishes in {{ category_summary|length }} Categories
+        </span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="category-summary-table">
             <thead>
                 <tr>
-                    <th>Order #</th>
-                    <th>Customer Name</th>
-                    <th>10-Digit Mobile</th>
-                    <th>Dining / Table</th>
-                    <th>Ordered Items & Qty</th>
-                    <th>Total Bill</th>
-                    <th>Status</th>
-                    <th>Update Status</th>
-                    <th style="text-align: right;">Actions</th>
+                    <th style="width: 60px;">#</th>
+                    <th>Category Name</th>
+                    <th>Dishes Listed</th>
+                    <th>Share of Catalog</th>
+                    <th style="text-align: right;">Action</th>
                 </tr>
             </thead>
-            <tbody id="adminOrdersTableBody">
-                {% for order in orders %}
-                <tr data-order-id="{{ order['id'] }}">
-                    <td><strong>#{{ order['id'] }}</strong></td>
+            <tbody>
+                {% for cat in category_summary %}
+                <tr>
+                    <td><strong>{{ loop.index }}</strong></td>
                     <td>
-                        <div style="font-weight: 600;">{{ order['customer_name'] }}</div>
+                        <strong style="color: var(--text-main);">{{ cat.name }}</strong>
                     </td>
                     <td>
-                        <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
-                            {{ order['customer_phone'] }}
-                        </code>
+                        <span class="food-badge" style="font-size: 0.85rem; padding: 3px 10px;">
+                            {{ cat.count }} {% if cat.count == 1 %}Item{% else %}Items{% endif %}
+                        </span>
                     </td>
                     <td>
-                        {% if 'Takeaway' in order['order_type'] or 'Takeaway' in order['table_no'] %}
-                            <span class="status-badge" style="background: #fed7aa; color: #9a3412;">🛍️ Takeaway (Go Home)</span>
-                        {% else %}
-                            <span class="status-badge" style="background: #e0f2fe; color: #0369a1;">🍽️ {{ order['table_no'] if order['table_no'] else 'Dine-In' }}</span>
-                        {% endif %}
-                    </td>
-                    <td style="max-width: 260px; word-break: break-word;">
-                        {{ order['items_summary'] }}
-                    </td>
-                    <td>
-                        <strong style="color: var(--primary);">₹{{ "%.2f"|format(order['total_bill']) }}</strong>
-                    </td>
-                    <td>
-                        {% if order['status'] == 'Pending' %}
-                            <span class="status-badge status-pending">Pending</span>
-                        {% elif order['status'] == 'Preparing' %}
-                            <span class="status-badge status-preparing">Preparing</span>
-                        {% else %}
-                            <span class="status-badge status-completed">Completed</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <!-- Status Update Dropdown Form -->
-                        <form action="{{ url_for('update_status', order_id=order['id']) }}" method="POST" style="margin: 0;">
-                            <select name="status" class="status-select" onchange="this.form.submit()">
-                                <option value="Pending" {% if order['status'] == 'Pending' %}selected{% endif %}>Pending</option>
-                                <option value="Preparing" {% if order['status'] == 'Preparing' %}selected{% endif %}>Preparing</option>
-                                <option value="Completed" {% if order['status'] == 'Completed' %}selected{% endif %}>Completed</option>
-                            </select>
-                        </form>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="flex: 1; max-width: 120px; height: 8px; background: #f3f4f6; border-radius: 4px; overflow: hidden;">
+                                <div style="width: {{ (cat.count / (stats.total_items if stats.total_items > 0 else 1) * 100)|round(1) }}%; height: 100%; background: var(--primary);"></div>
+                            </div>
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">
+                                {{ (cat.count / (stats.total_items if stats.total_items > 0 else 1) * 100)|round(1) }}%
+                            </span>
+                        </div>
                     </td>
                     <td style="text-align: right;">
-                        <div style="display: flex; gap: 6px; justify-content: flex-end;">
-                            <!-- Edit Customer Details Button -->
-                            <button type="button" class="btn btn-secondary btn-sm" title="Edit Customer Details"
-                                    onclick="openEditCustomerModal({{ order['id'] }}, '{{ order['customer_name']|replace("'", "\\'") }}', '{{ order['customer_phone'] }}', '{{ order['order_type'] }}', '{{ order['table_no']|replace("'", "\\'") }}')">
-                                ✏️ Edit
-                            </button>
-
-                            <!-- Delete Order Form -->
-                            <form action="{{ url_for('delete_order', order_id=order['id']) }}" method="POST" 
-                                  onsubmit="return confirm('Delete Order #{{ order['id'] }}? This cannot be undone.');" style="margin: 0;">
-                                <button type="submit" class="btn btn-danger btn-sm" title="Delete Order">
-                                    🗑️
-                                </button>
-                            </form>
-                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="filterMenuCatalog('{{ cat.name }}')">
+                            🔍 Filter Catalog
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    <div class="empty-state" id="adminEmptyState" {% if orders %}style="display: none;"{% endif %}>
-        <p>📋 No customer orders recorded yet.</p>
-        <p style="font-size: 0.85rem; margin-top: 4px;">Orders placed on the website will instantly appear here.</p>
-    </div>
 </div>
 
-<!-- SECTION 2: ADMIN FOOD & MENU MANAGEMENT -->
-<div class="card" style="padding: 0; overflow: hidden;">
+<!-- SECTION 3: ADMIN FOOD & MENU MANAGEMENT -->
+<div class="card" id="foodCatalogCard" style="padding: 0; overflow: hidden;">
     <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background-color: #fafafa;">
         <div>
             <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">🍴 Food Menu Management (Admin Only)</h3>
@@ -181,6 +453,16 @@
         </div>
         <button type="button" class="btn btn-primary btn-sm" onclick="openAddModal()">
             + Add New Food
+        </button>
+    </div>
+
+    <!-- Active Category Filter Bar -->
+    <div id="catalogFilterNotice" style="display: none; padding: 10px 18px; background: #fff7ed; border-bottom: 1px solid var(--border); align-items: center; justify-content: space-between;">
+        <span style="font-size: 0.85rem; font-weight: 600; color: var(--primary);">
+            Showing only dishes in: <strong id="catalogFilterName"></strong>
+        </span>
+        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.8rem; padding: 3px 10px;" onclick="filterMenuCatalog('all')">
+            ✕ Show All Dishes
         </button>
     </div>
 
@@ -195,9 +477,9 @@
                     <th style="text-align: right;">Admin Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="menuCatalogTableBody">
                 {% for item in menu_items %}
-                <tr>
+                <tr data-category="{{ item['category'] }}">
                     <td>#{{ item['id'] }}</td>
                     <td><strong>{{ item['name'] }}</strong></td>
                     <td><span class="food-badge">{{ item['category'] }}</span></td>
@@ -399,6 +681,72 @@
         }
 
         modal.classList.add("active");
+    }
+
+    // Switch between order tables on laptop
+    function switchOrderTab(tabName, btn) {
+        document.querySelectorAll('.order-tab-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+
+        const pendingCard = document.getElementById('tabContent_pending');
+        const preparingCard = document.getElementById('tabContent_preparing');
+        const completedCard = document.getElementById('tabContent_completed');
+
+        if (tabName === 'all') {
+            if (pendingCard) pendingCard.style.display = 'block';
+            if (preparingCard) preparingCard.style.display = 'block';
+            if (completedCard) completedCard.style.display = 'block';
+        } else {
+            if (pendingCard) pendingCard.style.display = tabName === 'pending' ? 'block' : 'none';
+            if (preparingCard) preparingCard.style.display = tabName === 'preparing' ? 'block' : 'none';
+            if (completedCard) completedCard.style.display = tabName === 'completed' ? 'block' : 'none';
+        }
+    }
+
+    // Handle dropdown selection for orders beyond top 10
+    function handleDropdownSelection(status, value) {
+        const extraRows = document.querySelectorAll(`.${status}-extra-row`);
+        if (value === "all") {
+            extraRows.forEach(r => r.style.display = "");
+        } else if (value === "10") {
+            extraRows.forEach(r => r.style.display = "none");
+        } else {
+            extraRows.forEach(r => r.style.display = "none");
+            const targetRow = document.getElementById(`${status}-row-${value}`);
+            if (targetRow) {
+                targetRow.style.display = "";
+                targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetRow.style.backgroundColor = '#fff7ed';
+                setTimeout(() => { targetRow.style.backgroundColor = ''; }, 2500);
+            }
+        }
+    }
+
+    // Filter food menu management catalog by category
+    function filterMenuCatalog(category) {
+        const rows = document.querySelectorAll("#menuCatalogTableBody tr");
+        rows.forEach(r => {
+            if (!category || category === "all" || r.getAttribute("data-category") === category) {
+                r.style.display = "";
+            } else {
+                r.style.display = "none";
+            }
+        });
+
+        const filterNotice = document.getElementById("catalogFilterNotice");
+        if (filterNotice) {
+            if (category && category !== "all") {
+                filterNotice.style.display = "flex";
+                document.getElementById("catalogFilterName").innerText = category;
+            } else {
+                filterNotice.style.display = "none";
+            }
+        }
+
+        const catalogSection = document.getElementById("foodCatalogCard");
+        if (catalogSection) {
+            catalogSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 </script>
 
