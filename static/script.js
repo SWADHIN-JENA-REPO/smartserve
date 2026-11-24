@@ -114,7 +114,7 @@ function openEditModal(id, name, category, price) {
     const form = document.getElementById("editItemForm");
     if (!modal || !form) return;
 
-    form.action = `/menu/edit/${id}`;
+    form.action = `/admin/menu/edit/${id}`;
     document.getElementById("edit_name").value = name;
     document.getElementById("edit_price").value = price;
 
@@ -293,8 +293,6 @@ function saveRecentOrder(order) {
     }
     if (list.length > 15) list.pop();
     localStorage.setItem(RECENT_ORDERS_KEY, JSON.stringify(list));
-    renderRecentOrders();
-    renderAdminLocalStorageOrders();
 }
 
 function cancelRecentOrder(orderId) {
@@ -477,155 +475,6 @@ window.addEventListener("click", function(event) {
     }
 });
 
-function syncAdminOrdersWithLocalStorage() {
-    const tableBody = document.getElementById("adminOrdersTableBody");
-    if (!tableBody) return;
-
-    const localOrders = getRecentOrders();
-    if (!localOrders || localOrders.length === 0) return;
-
-    const existingIds = new Set();
-    document.querySelectorAll("tr[data-order-id]").forEach(tr => {
-        existingIds.add(tr.getAttribute("data-order-id"));
-    });
-
-    const emptyState = document.getElementById("adminEmptyState");
-    const tableResponsive = document.getElementById("adminTableResponsive");
-
-    localOrders.forEach(order => {
-        const orderIdStr = String(order.id);
-        if (!existingIds.has(orderIdStr)) {
-            if (emptyState) emptyState.style.display = "none";
-            if (tableResponsive) tableResponsive.style.display = "block";
-
-            const tr = document.createElement("tr");
-            tr.setAttribute("data-order-id", orderIdStr);
-            const isCancelled = order.status === "Cancelled";
-            const badgeClass = isCancelled ? "status-badge" : (order.status === "Completed" ? "status-badge status-completed" : (order.status === "Preparing" ? "status-badge status-preparing" : "status-badge status-pending"));
-            const badgeStyle = isCancelled ? 'style="background: #fee2e2; color: #dc2626;"' : '';
-
-            tr.innerHTML = `
-                <td><strong>#${order.id}</strong> <span style="font-size:0.75rem; color:var(--primary); font-weight:600;">(Local)</span></td>
-                <td><div style="font-weight: 600;">${order.name}</div></td>
-                <td><code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${order.phone}</code></td>
-                <td><span class="status-badge" style="background: #e0f2fe; color: #0369a1;">${order.tableNo || order.orderType || 'Dine-In'}</span></td>
-                <td style="max-width: 260px; word-break: break-word;">${order.items}</td>
-                <td><strong style="color: var(--primary);">₹${parseFloat(order.total).toFixed(2)}</strong></td>
-                <td><span class="${badgeClass}" ${badgeStyle}>${order.status}</span></td>
-                <td>
-                    <select class="status-select" onchange="updateRecentOrderStatus(${order.id}, this.value); location.reload();">
-                        <option value="Pending" ${order.status === 'Pending' ? 'selected' : ''}>Pending</option>
-                        <option value="Preparing" ${order.status === 'Preparing' ? 'selected' : ''}>Preparing</option>
-                        <option value="Completed" ${order.status === 'Completed' ? 'selected' : ''}>Completed</option>
-                        <option value="Cancelled" ${order.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
-                    </select>
-                </td>
-                <td style="text-align: right;">
-                    <button type="button" class="btn btn-danger btn-sm" onclick="cancelRecentOrder(${order.id}); location.reload();" title="Cancel/Delete">🗑️</button>
-                </td>
-            `;
-            tableBody.appendChild(tr);
-        }
-    });
-}
-
-function updateRecentOrderStatus(orderId, newStatus) {
-    const list = getRecentOrders();
-    const item = list.find(o => String(o.id) === String(orderId));
-    if (item) {
-        item.status = newStatus;
-        localStorage.setItem(RECENT_ORDERS_KEY, JSON.stringify(list));
-        renderAdminLocalStorageOrders();
-    }
-}
-
-// Render Local Storage Orders strictly for Admin Portal
-function renderAdminLocalStorageOrders() {
-    const container = document.getElementById("adminLocalStorageOrdersContainer");
-    if (!container) return;
-
-    const list = getRecentOrders();
-    if (list.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state" style="padding: 24px; text-align: center;">
-                <p style="font-weight: 600; color: var(--text-main);">📋 No orders currently stored in browser local storage.</p>
-                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Orders placed on this device are automatically saved to local storage and listed here exclusively for the administrator.</p>
-            </div>
-        `;
-        return;
-    }
-
-    let html = `<div style="display: flex; flex-direction: column; gap: 12px;">`;
-
-    list.forEach(order => {
-        const isCancelled = order.status === "Cancelled";
-        const statusBadge = isCancelled 
-            ? `<span class="status-badge" style="background: #fee2e2; color: #dc2626;">❌ Cancelled</span>`
-            : (order.status === "Completed"
-                ? `<span class="status-badge status-completed">Completed</span>`
-                : (order.status === "Preparing"
-                    ? `<span class="status-badge status-preparing">Preparing</span>`
-                    : `<span class="status-badge status-pending">Pending</span>`));
-
-        html += `
-            <div style="border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; background: #fff; box-shadow: var(--shadow-sm);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #f3f4f6; padding-bottom: 6px;">
-                    <div>
-                        <strong>Order #${order.id}</strong> &bull; 
-                        <span style="font-size: 0.9rem; color: var(--text-muted);">${order.name} (${order.phone})</span>
-                        <span style="background: #fed7aa; color: #9a3412; font-size: 0.75rem; padding: 2px 7px; border-radius: 4px; font-weight: 600; margin-left: 6px;">💾 Local Storage</span>
-                    </div>
-                    <div>${statusBadge}</div>
-                </div>
-
-                <div style="font-size: 0.9rem; margin-bottom: 6px;">
-                    <strong>Items:</strong> ${order.items}
-                </div>
-
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
-                    <div style="font-weight: 700; color: var(--primary); font-size: 1.05rem;">
-                        ₹${parseFloat(order.total).toFixed(2)}
-                        <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">
-                            (${order.orderType || 'Dine-In'} ${order.tableNo ? '• ' + order.tableNo : ''})
-                        </span>
-                    </div>
-
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <select class="status-select" onchange="updateRecentOrderStatus(${order.id}, this.value)" style="padding: 4px 8px; font-size: 0.85rem;">
-                            <option value="Pending" ${order.status === 'Pending' ? 'selected' : ''}>Pending</option>
-                            <option value="Preparing" ${order.status === 'Preparing' ? 'selected' : ''}>Preparing</option>
-                            <option value="Completed" ${order.status === 'Completed' ? 'selected' : ''}>Completed</option>
-                            <option value="Cancelled" ${order.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
-                        </select>
-                        <button type="button" class="btn btn-danger btn-sm" onclick="deleteFromLocalStorage(${order.id})" title="Remove from local storage">
-                            🗑️ Delete
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    html += `</div>`;
-    container.innerHTML = html;
-}
-
-function clearLocalStorageOrders() {
-    if (confirm("Are you sure you want to clear all orders from local storage?")) {
-        localStorage.removeItem(RECENT_ORDERS_KEY);
-        renderAdminLocalStorageOrders();
-    }
-}
-
-function deleteFromLocalStorage(orderId) {
-    if (confirm(`Remove Order #${orderId} from local storage?`)) {
-        let list = getRecentOrders();
-        list = list.filter(o => String(o.id) !== String(orderId));
-        localStorage.setItem(RECENT_ORDERS_KEY, JSON.stringify(list));
-        renderAdminLocalStorageOrders();
-    }
-}
-
 // Initialize on page load
 document.addEventListener("DOMContentLoaded", function() {
     updateCartBadge();
@@ -633,12 +482,5 @@ document.addEventListener("DOMContentLoaded", function() {
     // If on the order page, render cart
     if (document.getElementById("orderCartList")) {
         renderOrderCart();
-    }
-    // If on admin page, render local storage orders and sync table
-    if (document.getElementById("adminLocalStorageOrdersContainer")) {
-        renderAdminLocalStorageOrders();
-    }
-    if (document.getElementById("adminOrdersTableBody")) {
-        syncAdminOrdersWithLocalStorage();
     }
 });

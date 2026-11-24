@@ -196,6 +196,7 @@ def admin_logout():
 # ---------------- ADMIN ONLY: FOOD & MENU MANAGEMENT ---------------- #
 
 @app.route("/admin/menu/add", methods=["POST"])
+@app.route("/menu/add", methods=["POST"])
 def add_item():
     """Admin-only: Adds a new food item and optional new food category type."""
     if not session.get("admin_logged_in"):
@@ -223,6 +224,7 @@ def add_item():
 
 
 @app.route("/admin/menu/edit/<int:item_id>", methods=["POST"])
+@app.route("/menu/edit/<int:item_id>", methods=["POST"])
 def edit_item(item_id):
     """Admin-only: Edits an existing food item and its category."""
     if not session.get("admin_logged_in"):
@@ -250,6 +252,7 @@ def edit_item(item_id):
 
 
 @app.route("/admin/menu/delete/<int:item_id>", methods=["POST"])
+@app.route("/menu/delete/<int:item_id>", methods=["POST"])
 def delete_item(item_id):
     """Admin-only: Deletes a food item from the menu."""
     if not session.get("admin_logged_in"):

@@ -168,22 +168,8 @@
     </div>
     <div class="empty-state" id="adminEmptyState" {% if orders %}style="display: none;"{% endif %}>
         <p>📋 No customer orders recorded yet.</p>
-        <p style="font-size: 0.85rem; margin-top: 4px;">Orders placed on the website or saved in your browser will instantly appear here.</p>
+        <p style="font-size: 0.85rem; margin-top: 4px;">Orders placed on the website will instantly appear here.</p>
     </div>
-</div>
-
-<!-- SECTION 1B: LOCAL STORAGE DEVICE ORDERS (ADMIN ONLY) -->
-<div class="card" style="padding: 0; overflow: hidden; margin-bottom: 30px;">
-    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background-color: #fafafa;">
-        <div>
-            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">💾 Local Storage Orders (Device Cache)</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Orders recorded in browser local storage. Only visible here in the Admin Portal.</p>
-        </div>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="clearLocalStorageOrders()">
-            🧹 Clear Local Storage
-        </button>
-    </div>
-    <div id="adminLocalStorageOrdersContainer" style="padding: 16px;"></div>
 </div>
 
 <!-- SECTION 2: ADMIN FOOD & MENU MANAGEMENT -->
